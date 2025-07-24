@@ -1,0 +1,13 @@
+# Virtual Environment & Cache
+wedding/
+.venv/
+__pycache__/
+*.pyc
+
+# Environment variables - CRITICAL
+
+.env
+
+# IDE settings
+.vscode/
+.idea

@@ -19,6 +19,9 @@ from linebot.v3.messaging import (
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
+# Local application imports
+import data_provider
+
 # --- Section 2: Initialization and Environment setup  ---
 
 # Load environment variables for the .env file for local development.
@@ -81,6 +84,8 @@ async def webhook(request: Request):
 # The @handler.add(...) decorator  registers the function below as the handler for message events.
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
+    # Retrieve the reply content from the data_provider module.
+    reply_text = data_provider.get_wedding_info(event.message.text)
     # The 'with' statement ensures that the ApiClient is properly closed after use.
     with ApiClient(configuration) as api_client:
         # Create an instance of the MessagingApi, which we will use to send reply messages.
@@ -88,7 +93,7 @@ def handle_message(event):
         line_bot_api.reply_message_with_http_info(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
-                messages=[TextMessage(text=f"回應:{event.message.text}")]
+                messages=[TextMessage(text=reply_text)]
             )
         )
 

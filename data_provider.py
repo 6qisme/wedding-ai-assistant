@@ -1,35 +1,39 @@
 # data_provider.py
 
-# A Python dictionary that serves as a static database.
-# All public information about the wedding is stored here. 
-_WEDDING_INFO_DB = {
-    "婚禮時間": "2025年10月26日 星期六 中午12:00入席",
-    "婚禮地點": "台北東方文華酒店 7F豪瑞奇廳",
-    "地址": "台北的某個地方",
-    "交通方式": "騎車或開車都有停車位",
-    "dress_code": "開心就好,但不要太噁",
-    "預設回覆": "真是個好問題!但我目前還無法回答，您可以嘗試問我關於「時間」、「地點」或「交通」的問題。"
-}
+# This module is responsible for providing all necessary wedding information as a single, consolidated string.
+# It acts as the "single source of truth" for the AI model.
 
-def get_wedding_info(user_question: str) -> str:
+def get_wedding_context_string() -> str:
     """
-    Finds and returns corresponding information from the static database
-    based on keywords in the user's question.
+    Consolidates all wedding information details into a single, well formatted string.
+    This string will be injected into the AI's system prompt to provide context.
 
-    :param user_question:The original question string from the user.
-    :return: The found answer or a default reply.
+    :return: A string containing all wedding information.
     """
 
-    if "時間" in user_question or "時候" in user_question or "幾點" in user_question:
-        return _WEDDING_INFO_DB["婚禮時間"]
-    elif "地點" in user_question or "哪裡" in user_question or "地址" in user_question:
-        # Reply with both "location" and "address" for convenience.
-        return f"{_WEDDING_INFO_DB['婚禮地點']}\n地址:{_WEDDING_INFO_DB['地址']}"
-    elif "交通" in user_question or "怎麼去" in user_question :
-        return _WEDDING_INFO_DB["交通方式"]
-    elif "穿" in user_question or "服裝" in user_question:
-        return _WEDDING_INFO_DB["dress_code"]
-    else:
-        # If no keywords match the conditions above.
-        return _WEDDING_INFO_DB["預設回覆"]
+    context = """
+    # 婚禮基本資訊
+    - 新郎: QQ
+    - 新娘: ShuYu
+    - 日期: 2025年10月26日 (星期六)
+    - 地點: 台北 W 飯店
+
+    # 時間流程
+    - 迎賓接待: 11:00
+    - 宴會開始: 12:00
+    - 逐桌敬酒: 13:00
+    - 送客時間: 15:00
+
+    # 交通資訊
+    - 地址: 台北某個地方
+    - 捷運: 台北小巨蛋站
+    - 停車: 飯店提供免費停車，請告知接待人員
+
+    # 其他資訊
+    - 服裝: 正式服裝
+    - 禮金: 現場設有禮金桌，感謝您的祝福
+    - 小驚喜: 現場設有CandyBar以及限量香水禮品
+    """
+    return context.strip()
+
     

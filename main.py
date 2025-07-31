@@ -14,13 +14,13 @@ from linebot.v3.messaging import (
     Configuration,
     ApiClient,
     MessagingApi,
-    ReplyMessageRequest,
     TextMessage
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
 # Local application imports
-import data_provider
+from ai_core import get_ai_reply
+from data_provider import get_wedding_context_string
 
 # --- Section 2: Initialization and Environment setup  ---
 
@@ -45,6 +45,8 @@ if not channel_secret or not channel_access_token:
 handler = WebhookHandler(channel_secret)
 # Configuration: Holds the Access Token used to authenticate API calls when sending messages.
 configuration = Configuration(access_token=channel_access_token)
+# Instantiate the main MessagingApi client for sending replies.
+line_bot_api = MessagingApi(ApiClient(configuration))
 
 # --- Section 3 : Define the API router ---
 # Define the URL path
@@ -56,7 +58,7 @@ configuration = Configuration(access_token=channel_access_token)
 def read_root():
     return {"status": "ok", "message": "Wedding AI Assistant is alive."}
 
-# Webhook endpoint, reciving all message from LINE.
+# Webhook endpoint, reciving all messages from LINE.
 # @app.post("/webhook"), only accept POST method from this path.
 @app.post("/webhook")
 async def webhook(request: Request):
@@ -68,7 +70,7 @@ async def webhook(request: Request):
 
     try:
         # Send request and signature to verify by handler.
-        # If signature false, sending InvalidSignatureError.
+        # If the signature is false, an InvalidSignatureError is raised.
         handler.handle(body.decode(), signature)
     except InvalidSignatureError:
         # If signature false, refuse the request and return  "400" error.
@@ -84,17 +86,19 @@ async def webhook(request: Request):
 # The @handler.add(...) decorator  registers the function below as the handler for message events.
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
-    # Retrieve the reply content from the data_provider module.
-    reply_text = data_provider.get_wedding_info(event.message.text)
-    # The 'with' statement ensures that the ApiClient is properly closed after use.
-    with ApiClient(configuration) as api_client:
-        # Create an instance of the MessagingApi, which we will use to send reply messages.
-        line_bot_api = MessagingApi(api_client)
-        line_bot_api.reply_message_with_http_info(
-            ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[TextMessage(text=reply_text)]
-            )
+    # 1. Retrieve wedding information from data_provider
+    context = get_wedding_context_string()
+
+    # 2. Retrieve user question
+    user_question = event.message.text
+
+    # 3. Consolidates wedding information and user question to ai_core handle.
+    reply_text = get_ai_reply(context=context, user_question=user_question)
+
+    # 4. Sending AI's reply to user.
+    line_bot_api.reply_message(
+        event.reply_token,
+        TextMessage(text=reply_text)
         )
 
 # --- Section 5 : Local Development Block ---

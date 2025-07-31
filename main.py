@@ -14,6 +14,7 @@ from linebot.v3.messaging import (
     Configuration,
     ApiClient,
     MessagingApi,
+    ReplyMessageRequest,
     TextMessage
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
@@ -97,9 +98,11 @@ def handle_message(event):
 
     # 4. Sending AI's reply to user.
     line_bot_api.reply_message(
-        event.reply_token,
-        TextMessage(text=reply_text)
+        ReplyMessageRequest(
+            reply_token=event.reply_token,
+            messages=[TextMessage(text=reply_text)]
         )
+    )
 
 # --- Section 5 : Local Development Block ---
 # This block only runs when the script is executed directly (e.g., python main.py).

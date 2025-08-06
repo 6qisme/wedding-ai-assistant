@@ -80,19 +80,19 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
         # Only handle text message.
         if isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent):
             # Instantiate a single background task for every text message.
-            background_tasks.add_task(process_text_message, event)
+            user_id = event.source.user_id
+            user_question = event.message.text
+            background_tasks.add_task(process_text_message, user_id, user_question)
     return 'OK'
 
 # --- Section 4: Event Processing Logic ---
 
-def process_text_message(event: MessageEvent):
+def process_text_message(user_id: str, user_question: str):
     """
     Processes a text message in background, calls the AI, and pushes the reply.
     """
-    print(f"Processing message for user: {event.source.user_id}")
-    user_id = event.source.user_id
+    print(f"Processing message for user: {user_id}")
     context = get_wedding_context_string()
-    user_question = event.message.text
 
     try:
         reply_text = get_ai_reply(context=context, user_question=user_question)

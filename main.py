@@ -63,7 +63,7 @@ def read_root():
 @app.post("/webhook")
 async def webhook(request: Request, background_tasks: BackgroundTasks):
     # Get 'X-Line-Signature'
-    signature = request.headers['X-Line-Signature']
+    signature = request.headers.get('X-Line-Signature', '')
 
     # Get the request body as bytes.
     body = await request.body()

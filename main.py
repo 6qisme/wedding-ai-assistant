@@ -4,18 +4,18 @@
 
 import os
 import uvicorn
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from dotenv import load_dotenv
 
 # Import necessary components from the line-bot-sdk. 
-from linebot.v3 import WebhookHandler
+from linebot.v3 import WebhookParser
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
     Configuration,
     ApiClient,
     MessagingApi,
-    ReplyMessageRequest,
-    TextMessage
+    TextMessage,
+    PushMessageRequest
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
@@ -42,8 +42,8 @@ if not channel_secret or not channel_access_token:
     exit()
 
 # Instantiate LINE Bot SDK core components
-# WebhookHandler: Verifies that the signature comes from LINE's official servers.
-handler = WebhookHandler(channel_secret)
+# WebhookParser: For manually parsing and verifying
+parser = WebhookParser(channel_secret)
 # Configuration: Holds the Access Token used to authenticate API calls when sending messages.
 configuration = Configuration(access_token=channel_access_token)
 # Instantiate the main MessagingApi client for sending replies.
@@ -55,54 +55,59 @@ line_bot_api = MessagingApi(ApiClient(configuration))
 # Health Check Endpoint
 # @app.get("/") is a route for checking the server is alive.
 @app.get("/")
-
 def read_root():
     return {"status": "ok", "message": "Wedding AI Assistant is alive."}
 
 # Webhook endpoint, reciving all messages from LINE.
 # @app.post("/webhook"), only accept POST method from this path.
 @app.post("/webhook")
-async def webhook(request: Request):
+async def webhook(request: Request, background_tasks: BackgroundTasks):
     # Get 'X-Line-Signature'
     signature = request.headers['X-Line-Signature']
 
     # Get the request body as bytes.
     body = await request.body()
 
-    try:
-        # Send request and signature to verify by handler.
-        # If the signature is false, an InvalidSignatureError is raised.
-        handler.handle(body.decode(), signature)
+    try: 
+        # Signature Check Point
+        events = parser.parse(body.decode('utf-8'),signature)
     except InvalidSignatureError:
-        # If signature false, refuse the request and return  "400" error.
-        print("Invalid signature detected. Request rejected.")
-        raise HTTPException(status_code=400, detail='Invalid signature.')
+        # Refuse invalid request
+        raise HTTPException(status_code=400, detail="Invalid signature")
     
+    # Go through all verified events
+    for event in events:
+        # Only handle text message.
+        if isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent):
+            # Instantiate a single background task for every text message.
+            background_tasks.add_task(process_text_message, event)
     return 'OK'
 
 # --- Section 4: Event Processing Logic ---
-# Defines the logic for handling incoming messages.
 
-# Message Handler, focus on text messages.
-# The @handler.add(...) decorator  registers the function below as the handler for message events.
-@handler.add(MessageEvent, message=TextMessageContent)
-def handle_message(event):
-    # 1. Retrieve wedding information from data_provider
+def process_text_message(event: MessageEvent):
+    """
+    Processes a text message in background, calls the AI, and pushes the reply.
+    """
+    print(f"Processing message for user: {event.source.user_id}")
+    user_id = event.source.user_id
     context = get_wedding_context_string()
-
-    # 2. Retrieve user question
     user_question = event.message.text
 
-    # 3. Consolidates wedding information and user question to ai_core handle.
-    reply_text = get_ai_reply(context=context, user_question=user_question)
+    try:
+        reply_text = get_ai_reply(context=context, user_question=user_question)
+        print(f"AI reply generated: '{reply_text[:30]}...'")
 
-    # 4. Sending AI's reply to user.
-    line_bot_api.reply_message(
-        ReplyMessageRequest(
-            reply_token=event.reply_token,
-            messages=[TextMessage(text=reply_text)]
+        line_bot_api.push_message(
+            PushMessageRequest(
+                to=user_id,
+                messages=[TextMessage(text=reply_text)]
+            )
         )
-    )
+        print("Push message sent.")
+    except Exception as e:
+        # Catch any error in background (e.x. AI API calling fault.).
+        print(f"An error occurred in background task for user {user_id}: {e}")
 
 # --- Section 5 : Local Development Block ---
 # This block only runs when the script is executed directly (e.g., python main.py).

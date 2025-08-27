@@ -1,0 +1,22 @@
+# Virtual Environment & Cache
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# OS junk (safe to ignore everywhere)
+.DS_Store
+Thumbs.db
+
+# Environment variables - CRITICAL (API keys, secrets)
+.env
+.env.*
+!.env.example
+
+# IDE settings
+.vscode/
+.idea/
+
+# Wedding information (private at runtime)- keep only example files in Git
+instance/*
+!instance/*.example.json

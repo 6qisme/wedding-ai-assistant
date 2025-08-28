@@ -14,11 +14,10 @@ load_dotenv()
 
 # Import necessary components from the line-bot-sdk. 
 from linebot.v3 import WebhookParser
-from linebot.v3.exceptions import ( 
-    InvalidSignatureError,
-    ApiException)
+from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
     Configuration,
+    ApiException,
     ApiClient,
     MessagingApi,
     TextMessage,

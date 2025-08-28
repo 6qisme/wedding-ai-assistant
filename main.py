@@ -2,8 +2,9 @@
 
 # --- Section 1: Core Library Imports  ---
 
-import os
+import time, json, os
 import uvicorn
+from datetime import datetime, timezone
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from dotenv import load_dotenv
 
@@ -13,7 +14,9 @@ load_dotenv()
 
 # Import necessary components from the line-bot-sdk. 
 from linebot.v3 import WebhookParser
-from linebot.v3.exceptions import InvalidSignatureError
+from linebot.v3.exceptions import ( 
+    InvalidSignatureError,
+    ApiException)
 from linebot.v3.messaging import (
     Configuration,
     ApiClient,
@@ -39,7 +42,7 @@ channel_access_token = os.getenv('LINE_CHANNEL_ACCESS_TOKEN')
 # Safety check
 if not channel_secret or not channel_access_token:
     print("ERROR: You must set 'LINE_CHANNEL_SECRET' and 'LINE_CHANNEL_ACCESS_TOKEN'. ")
-    exit()
+    raise SystemExit(1)
 
 # Instantiate LINE Bot SDK core components
 # WebhookParser: For manually parsing and verifying
@@ -49,6 +52,63 @@ configuration = Configuration(access_token=channel_access_token)
 # Instantiate the main MessagingApi client for sending replies.
 line_bot_api = MessagingApi(ApiClient(configuration))
 
+# Failure message log
+DEAD_LETTER_PATH ="instance/dead_letters.jsonl"
+
+# When pushing fault, wait 1 or 2 second than try again,
+# otherwise writing into dead_letters.jsonl for retry in the future.
+
+def _push_with_retry(to_user_id: str, text: str, max_retries: int = 2) -> bool:
+    # Limit LINE single message to ~5000 chars, conservatively truncate to avoid rejection.
+    safe_text = text if len(text) <= 4500 else (text[:4490] + "...(截斷)")
+
+    for attempt in range(1, max_retries + 2):
+        try:
+            line_bot_api.push_message(
+                PushMessageRequest(
+                    to=to_user_id,
+                    messages=[TextMessage(text=safe_text)]
+                )
+            )
+            print(f"[push][ok] to={to_user_id} try={attempt}")
+            return True
+        
+        except ApiException as e:
+            # When LINE API responds with an error (inspect http status/body for diagnostics).
+            print(
+                f"[push][api-error] status={getattr(e, 'status', None)} "
+                f"body={getattr(e, 'body',None)} try={attempt}"
+                  )
+            
+        except Exception as e:
+            # Network-layer error (e.g. Connection reset by peer)
+            print(f"[push][conn-error] {type(e).__name__}: {e} try={attempt}")
+
+        if attempt <= max_retries:
+            wait = 2 ** (attempt - 1) # 1s, 2s...
+            print(f"[push] retry in {wait}s")
+            time.sleep(wait)
+
+    # Still failing after retries than write a dead-letter record (one JSON per line).
+    try:
+        folder = os.path.dirname(DEAD_LETTER_PATH)
+        if folder:
+            os.makedirs(folder, exist_ok=True)
+
+        rec = {
+            "ts": datetime.now(timezone.utc).isoformat(), # timezone-aware UTC
+            "user_id": to_user_id,
+            "text": safe_text
+        }
+        with open(DEAD_LETTER_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        print(f"[push][dead-letter] saved -> {DEAD_LETTER_PATH}")
+    except Exception as e:
+        print(f"[push][dead-letter][fail] {e}")
+        return False
+    
+    return False # If dead-letter success.
+    
 # --- Section 3 : Define the API router ---
 # Define the URL path
 
@@ -98,13 +158,8 @@ def process_text_message(user_id: str, user_question: str):
         reply_text = get_ai_reply(context=context, user_question=user_question)
         print(f"AI reply generated: '{reply_text[:30]}...'")
 
-        line_bot_api.push_message(
-            PushMessageRequest(
-                to=user_id,
-                messages=[TextMessage(text=reply_text)]
-            )
-        )
-        print("Push message sent.")
+        ok = _push_with_retry(user_id, reply_text, max_retries=2)
+        print("Push message sent." if ok else f"[push][give-up] user={user_id}")
     except Exception as e:
         # Catch any error in background (e.g. AI API calling fault.).
         print(f"An error occurred in background task for user {user_id}: {e}")

@@ -12,7 +12,7 @@ def find_self_rows(keyword: str):
            relation_role,
            representative
     FROM guests
-    WHERE name ILIKE %s OR alias ILIKE %s OR display_name ILIKE %s    
+    WHERE (name ILIKE %s OR alias ILIKE %s OR display_name ILIKE %s) AND attending = TRUE
     """
     return run_query(sql, (q, q, q))
 
@@ -24,7 +24,7 @@ def find_family_by_guest_code(guest_code: str):
            group_code,
            relation_role
     FROM guests
-    WHERE representative = %s OR guest_code = %s
+    WHERE (representative = %s OR guest_code = %s) AND attending = TRUE
     ORDER BY relation_role
     """
     return run_query(sql, (guest_code, guest_code))
@@ -62,6 +62,7 @@ def find_guest_and_family(keyword: str):
     return {"status": "ok", "data": result}
 
 if __name__ == "__main__":
-    bundles = find_guest_and_family("劉")
+    bundles = find_guest_and_family("王先生")
+
     from db.formatters import format_guest_reply
     print(format_guest_reply(bundles))

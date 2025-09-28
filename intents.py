@@ -15,8 +15,15 @@ def classify_intents(text: str) -> str:
     return intents
 
 def extract_keyword(text: str) -> str:
-    noise = ["我要找", "找", "桌", "位", "座", "坐", "哪", "哪裡"]
-    for n in noise:
-        text = text.replace(n, "")
-    text = re.sub(r"[^\w\s\.\-\u4e00-\u9fff]", "", text)
-    return text.strip()
+    phrases = [
+        r"我要找", r"幫我找", r"請幫我找", r"找一下", r"查一下", r"查詢", r"查",
+        r"請問", r"問", r"麻煩", r"謝謝",
+        r"座位", r"位置", r"座", r"位", r"桌", r"坐在哪裡", r"坐在哪", r"在哪裡", r"在哪",
+        r"我的", r"我座", r"我坐", r"我", r"的"
+    ]
+    pattern = "(" + "|".join(phrases) + ")"
+    text = re.sub(pattern, "", text)
+
+    text = re.sub(r"[^\w\s\.\-\u4e00-\u9fff]", "", text).strip()
+
+    return text if len(text) >= 2 and len(text)<=20 else "" #

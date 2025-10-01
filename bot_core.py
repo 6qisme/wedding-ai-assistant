@@ -20,31 +20,36 @@ def handle_message(user_input: str) -> str:
     db_result = None
     # Step 1: Always include wedding info
     wedding_context = get_wedding_context_string()
-    contexts = [wedding_context]
+
     # Step 2: Add seat info if needed
     intents = classify_intents(user_input)
+
     if "seat_lookup" in intents:
         keyword = extract_keyword(user_input)
         if not keyword:
             return "抱歉，我不太確定你要找誰的座位，麻煩您重新查詢，查詢範例：「我要找王小明的座位」，謝謝您！"
         db_result = find_guest_and_family(keyword)
-        contexts.append(format_guest_reply(db_result))
+        reply = format_guest_reply(db_result)
 
+        DEBUG_VERBOSE = os.getenv("DEBUG_VERBOSE", "false").lower() == "true"
 
+        if DEBUG_VERBOSE:
+            print("========== DEBUG CONTEXT ==========")
+            print("User question:", user_input)
+            print("Seat context:\n", db_result or "(空)")
+            print("Seat context(format):\n",reply)
+        return reply
+
+    
     # Step 3 : Merge contexts into one string
-    full_context = "\n\n".join(contexts)
+    full_context = wedding_context
 
     DEBUG_VERBOSE = os.getenv("DEBUG_VERBOSE", "false").lower() == "true"
-
     if DEBUG_VERBOSE:
         print("========== DEBUG CONTEXT ==========")
         print("User question:", user_input)
         print("===================================")
-        print("Wedding context:\n", wedding_context)
-        print("===================================")
-        print("Seat context:\n", db_result or "(空)")
-        print("===================================")
-        print("Full merged context (GPT資訊):\n",full_context[:300], "...")
+        print("Wedding context (first 500):\n",full_context[:500],"...")
 
     # Step 4: Let GPT generate a natural reply
     try:

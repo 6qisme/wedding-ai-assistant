@@ -30,7 +30,7 @@ def format_guest_reply(payload: dict) -> str:
                 role = f.get("relation_role", " (未知身分) ")
                 seat = f.get("seat_number")
                 seat_str = str(seat) if seat not in (None, "", 0) else "未安排"
-                lines.append(f"{name}：桌{seat_str}({role})")
+                lines.append(f"{name}：{seat_str} 桌({role})")
 
             lines.append("") # Blank line
         

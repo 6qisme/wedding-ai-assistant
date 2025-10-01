@@ -1,12 +1,14 @@
 # bot_core.py
 
+import os 
+
 from intents import classify_intents, extract_keyword
 from db.queries import find_guest_and_family
 from db.formatters import format_guest_reply
 from data_provider import get_wedding_context_string
 from ai_core import get_ai_reply
 from dotenv import load_dotenv
-load_dotenv(".env")
+load_dotenv()
 
 def handle_message(user_input: str) -> str:
     """
@@ -31,14 +33,18 @@ def handle_message(user_input: str) -> str:
 
     # Step 3 : Merge contexts into one string
     full_context = "\n\n".join(contexts)
-    print("========== DEBUG CONTEXT ==========")
-    print("User question:", user_input)
-    print("===================================")
-    print("Wedding context:\n", wedding_context)
-    print("===================================")
-    print("Seat context:\n", db_result or "(空)")
-    print("===================================")
-    print("Full merged context (GPT資訊):\n",full_context[:300], "...")
+
+    DEBUG_VERBOSE = os.getenv("DEBUG_VERBOSE", "false").lower() == "true"
+
+    if DEBUG_VERBOSE:
+        print("========== DEBUG CONTEXT ==========")
+        print("User question:", user_input)
+        print("===================================")
+        print("Wedding context:\n", wedding_context)
+        print("===================================")
+        print("Seat context:\n", db_result or "(空)")
+        print("===================================")
+        print("Full merged context (GPT資訊):\n",full_context[:300], "...")
 
     # Step 4: Let GPT generate a natural reply
     try:

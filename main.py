@@ -47,6 +47,7 @@ channel_access_token = os.getenv('LINE_CHANNEL_ACCESS_TOKEN')
 if not channel_secret or not channel_access_token:
     print("ERROR: You must set 'LINE_CHANNEL_SECRET' and 'LINE_CHANNEL_ACCESS_TOKEN'. ")
     raise SystemExit(1)
+DEBUG_VERBOSE = os.getenv("DEBUG_VERBOSE", "false").lower() == "true"
 
 # Instantiate LINE Bot SDK core components
 # WebhookParser: For manually parsing and verifying
@@ -156,7 +157,7 @@ def process_text_message(user_id: str, user_question: str):
     Processes incoming user message:
     1. Classify intent (seat lookup / wedding info / fallback).
     2. Query JSON or DB based on the intent.
-    3. Wrap result with GPT to gernerate a nutural reply.
+    3. Wrap result with GPT to generate a natural reply.
     4. Push reply back to the user
     """
 
@@ -175,12 +176,19 @@ def process_text_message(user_id: str, user_question: str):
            reply_text = "抱歉，我不太確定你要找誰的座位，麻煩您重新查詢，查詢範例：「我要找王小明的座位」，謝謝您！"
            _push_with_retry(user_id, reply_text)
            return
+       
        db_result = find_guest_and_family(keyword)
-       context = format_guest_reply(db_result)
+       reply_text = format_guest_reply(db_result)
 
-    elif intent in ["wedding_location", "wedding_time"]:
-        context = get_wedding_context_string()
-    
+       if DEBUG_VERBOSE:
+            print("========== DEBUG CONTEXT ==========")
+            print("User question:", user_question)
+            print("Seat context:\n", db_result or "(空)")
+            print("Seat context(format):\n",reply_text)       
+         
+       _push_with_retry(user_id, reply_text)
+       return
+
     else:
         context = get_wedding_context_string()
 

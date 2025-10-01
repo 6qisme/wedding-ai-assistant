@@ -1,4 +1,4 @@
-# seed_loader.py
+# tools/seed_loader_local.py
 
 import psycopg2
 import os

@@ -2,6 +2,12 @@
 
 from db.db_connection import run_query
 
+# Maximum number of families allowed before treating as ambiguous.
+FAMILY_AMBIGUITY_THRESHOLD = 1
+
+# Performance protection: if raw matched rows exceed this cap ask user to refine.
+ROW_HARD_CAP = 30
+
 def find_self_rows(keyword: str):
     q = f"%{keyword}%"
     sql = """
@@ -37,10 +43,10 @@ def find_guest_and_family(keyword: str):
     if not self_rows:
         return {"status": "not_found", "data":[]}
     
-    if len(self_rows) > 5:
+    if len(self_rows) > ROW_HARD_CAP:
         return {"status": "too_many", "data": []}
     
-    result = []
+    anchors = []
     seen = set()
     for r in self_rows:
         # Find anchor
@@ -53,16 +59,23 @@ def find_guest_and_family(keyword: str):
             continue
 
         seen.add(anchor) # Record data to avoid duplicate processing
-
+        anchors.append(anchor)
+    
+    # Determine the number of families 
+    if len(anchors) > FAMILY_AMBIGUITY_THRESHOLD:
+        return {"status": "too_many", "data": []}
+    
+    result = []
+    for anchor in anchors:
         family = find_family_by_guest_code(anchor)
         who = next((m["show_name"] for m in family if m["relation_role"] == "self"),
                    family[0]["show_name"] if family else " (未知代表人) ") # Screen out representatives
         result.append({"who": who, "family": family})
-    
+
     return {"status": "ok", "data": result}
 
 if __name__ == "__main__":
-    bundles = find_guest_and_family("王先生")
+    bundles = find_guest_and_family("王大明")
 
     from db.formatters import format_guest_reply
     print(format_guest_reply(bundles))

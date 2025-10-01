@@ -20,3 +20,4 @@ Thumbs.db
 # Wedding information (private at runtime)- keep only example files in Git
 instance/*
 !instance/*.example.json
+db/data/*

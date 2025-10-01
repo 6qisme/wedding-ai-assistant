@@ -1,4 +1,4 @@
-# tools/guest_loader.py
+# tools/guest_loader_local.py
 
 import psycopg2
 import os

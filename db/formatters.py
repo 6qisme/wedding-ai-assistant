@@ -2,7 +2,9 @@
 
 def format_guest_reply(payload: dict) -> str:
     """
-
+    Convert DB query payload into a user-facing text response.
+    - Too_short / not_found / Too_many: return user guidance in Chinese
+    - ok : return a full family seating list (role + table)
     """
     status = payload.get("status")
     data = payload.get("data", [])
@@ -12,14 +14,15 @@ def format_guest_reply(payload: dict) -> str:
     if status == "not_found":
         return "找不到符合的來賓，請確認姓名或嘗試暱稱"
     if status == "too_many":
-        return "找到太多符合的人囉！請輸入更完整的姓名～"
+        return "找到太多符合的人囉！請輸入更完整的姓名，例如「王小明」而不是「小明」。"
     
     if status == "ok":
-        lines = []
+        lines = ["感謝蒞臨 座位如下：", ""]
         role_rank = {"self":0, "spouse": 1, "child": 2, "guest":3, "other":4}
+        
         for bundle in data:
             who = bundle.get("who") or " (未知代表人) "
-            lines.append(f"- {who}一家 -")
+            # lines.append(f"- 感謝{who}蒞臨 -")
 
             fam_sorted = sorted(
                 bundle.get("family", []),
@@ -29,8 +32,8 @@ def format_guest_reply(payload: dict) -> str:
                 name = f.get("show_name", " (無名字) ")
                 role = f.get("relation_role", " (未知身分) ")
                 seat = f.get("seat_number")
-                seat_str = str(seat) if seat not in (None, "", 0) else "未安排"
-                lines.append(f"{name}：桌{seat_str}({role})")
+                seat_str = f"{seat} 桌" if seat not in (None, "", 0) else "未安排"
+                lines.append(f"- {name} ({role})：{seat_str}")
 
             lines.append("") # Blank line
         

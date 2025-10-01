@@ -1,4 +1,4 @@
--- seed_data.sql
+-- db/seed_data.sql
 
 INSERT INTO groups (group_code, group_name, side, category, notes) VALUES
 ('GR001', '新郎家', 'groom', 'family', '直系親屬'),

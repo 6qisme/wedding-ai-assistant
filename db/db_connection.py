@@ -13,11 +13,13 @@ load_dotenv(ENV_PATH)
 def get_connection():
     """
     Create a PostgreSQL connection.
-    - Prefer DATABASE_URL if present (e.g., on Render/Heroku)
-    - Otherwise fall back to PG* variables for local dev
-    Returns: psycopg2 connection with RealDictCursor as default cursor.
+    Priority:
+    1. RENDER_DATABASE_URL (internal, best for Render deploy)
+    2. REMOTE_DATABASE_URL (external, for local dev to connect cloud DB)
+    3. PG* variables (for local dev only)
     """
-    db_url = os.getenv("DATABASE_URL")
+
+    db_url = os.getenv("RENDER_DATABASE_URL") or os.getenv("REMOTE_DATABASE_URL")
     if db_url:
         # Render
         return psycopg2.connect(

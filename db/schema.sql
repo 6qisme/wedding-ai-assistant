@@ -1,4 +1,4 @@
--- schema.sql
+-- db/schema.sql
 -- Building group sheet
 CREATE TABLE IF NOT EXISTS groups(
     group_code VARCHAR(10) PRIMARY KEY,

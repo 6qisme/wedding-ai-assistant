@@ -75,7 +75,35 @@ def find_guest_and_family(keyword: str):
     return {"status": "ok", "data": result}
 
 if __name__ == "__main__":
-    bundles = find_guest_and_family("王大明")
+    while True:
+        keyword = input("Input Name:").strip()
+        if keyword.lower() in {"exit", "quit", "q"}:
+            print("--- End ---")
+            break
+        bundles = find_guest_and_family(keyword)
 
-    from db.formatters import format_guest_reply
-    print(format_guest_reply(bundles))
+        # Debug log
+        print("=== Debug info===:\n")
+        self_rows = find_self_rows(keyword)
+        print(f"self_rows ({len(self_rows)})", self_rows)
+
+        anchors = []
+        seen = set()
+        for r in self_rows:
+            # Find anchor
+            if r["relation_role"] == "self":
+                anchor = r["guest_code"]
+            else:
+                anchor = r.get("representative") or r["guest_code"]
+
+            if anchor not in seen:
+                seen.add(anchor)
+                anchors.append(anchor)
+        print(f"\n anchors ({len(anchors)}):", anchors)
+
+    
+        # Result
+        print("\n Final result:\n", bundles)
+        from db.formatters import format_guest_reply
+        print(format_guest_reply(bundles))
+    

@@ -30,10 +30,10 @@ def format_guest_reply(payload: dict) -> str:
             )
             for f in fam_sorted:
                 name = f.get("show_name", " (無名字) ")
-                role = f.get("relation_role", " (未知身分) ")
+                role = f.get("relation_role", " (未知身分) ")  # Retain information
                 seat = f.get("seat_number")
-                seat_str = f"{seat} 桌" if seat not in (None, "", 0) else "未安排"
-                lines.append(f"- {name} ({role})：{seat_str}")
+                seat_str = f"第 {seat} 桌" if seat not in (None, "", 0) else "未安排"
+                lines.append(f"- {name} ：{seat_str}")
 
             lines.append("") # Blank line
         

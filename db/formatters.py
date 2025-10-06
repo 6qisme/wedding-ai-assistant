@@ -10,9 +10,9 @@ def format_guest_reply(payload: dict) -> str:
     data = payload.get("data", [])
 
     if status == "too_short":
-        return "請輸入完整姓名喔！，例如：我要找張三"
+        return "請輸入完整姓名喔！，例如：我要找張三。"
     if status == "not_found":
-        return "找不到符合的來賓，請確認姓名或嘗試暱稱"
+        return "找不到符合的來賓，請確認姓名或暱稱，或是改輸入更簡單的指令，例如：我要找張三。"
     if status == "too_many":
         return "找到太多符合的人囉！請輸入更完整的姓名，例如「王小明」而不是「小明」。"
     

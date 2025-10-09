@@ -21,3 +21,6 @@ Thumbs.db
 instance/*
 !instance/*.example.json
 db/data/*
+
+static/maps/*
+!static/maps/*.example.png

@@ -16,6 +16,7 @@ load_dotenv()
 
 # Get environment variables
 STATIC_BASE_URL = os.getenv("STATIC_BASE_URL", "http://127.0.0.1:8000/static")
+STATIC_FULL_SEATMAP = os.getenv("STATIC_FULL_SEATMAP", "sample_map.example.webp")
 DEBUG_VERBOSE = os.getenv("DEBUG_VERBOSE", "false").lower() == "true"
 
 def handle_message(user_input: str) -> Dict[str, Optional[str]]:
@@ -64,7 +65,7 @@ def handle_message(user_input: str) -> Dict[str, Optional[str]]:
 
         # Return seat chart URL
         if tables:
-            result["image_url"] = f"{STATIC_BASE_URL}/maps/sample_map.example.webp"            
+            result["image_url"] = f"{STATIC_BASE_URL}/maps/{STATIC_FULL_SEATMAP}"            
         
         
         if DEBUG_VERBOSE:

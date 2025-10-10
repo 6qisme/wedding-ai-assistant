@@ -22,5 +22,7 @@ instance/*
 !instance/*.example.json
 db/data/*
 
+# Static data/pic
 static/maps/*
 !static/maps/*.example.*
+!static/maps/wedding_map.webp

@@ -14,6 +14,17 @@ client = OpenAI(api_key=_api_key)
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4.1-nano")
 SYSTEM_PROMPT_PATH = os.getenv("SYSTEM_PROMPT_PATH", "prompts/system.txt")
 
+# Checks if the value of MAX_TOKEN is an integer
+def _get_int_env(var_name: str, default: int) -> int:
+    try:
+        return int(os.getenv(var_name, default))
+    except ValueError:
+        print(f"[Error] Invalid integer value for {var_name}, fallback to {default}")
+        return default
+
+MAX_TOKEN = _get_int_env("MAX_TOKEN", 150)
+
+
 def _load_system_prompt(context: str) -> str:
     """
     Load system prompt from file if available; otherwise use a safe default.
@@ -72,7 +83,7 @@ def get_ai_reply(context: str, user_question: str) -> str:
 
             ],
         # Limit the max token.
-        max_tokens=150
+        max_tokens=MAX_TOKEN
         )
         content = completion.choices[0].message.content or "(無內容)"
         return content

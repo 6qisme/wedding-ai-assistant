@@ -67,8 +67,43 @@ DEAD_LETTER_PATH = "instance/dead_letters.jsonl"
 # When pushing fails, wait 1 or 2 seconds then try again,
 # otherwise writing into dead_letters.jsonl for retry in the future.
 
+def _smart_send(user_id: str, reply_token: Optional[str], text:str) -> None:
+    """
+    Push-first hybrid messaging:
+    - Try reply first (if token valid) to save quota.
+    - Fallback to push if reply fails or token expired.
+    """
+    safe_text = text if len(text) <= 4500 else (text[:4490] + "...(截斷)")
+    used_reply = False
+
+    if reply_token:
+        try:
+            line_bot_api.reply_message(
+                ReplyMessageRequest(
+                    reply_token=reply_token,
+                    messages=[TextMessage(text=safe_text)]
+                )
+            )
+            used_reply = True
+            if DEBUG_VERBOSE:
+                print(f"[reply][ok] len={len(safe_text)} user={user_id[:5]}***{user_id[-3:]}")
+        except ApiException as e:
+            if DEBUG_VERBOSE:
+                print(f"[reply][api-error] status={e.status} body={e.body}")
+            if e.status == 400 and e.body and "Invalid reply token" in e.body:
+                print("[fallback] reply_token expired → push mode")
+            else:
+                print("[fallback] reply failed → push mode")
+        except Exception as e:
+            print(f"[reply][conn-error] {type(e).__name__}: {e} → push mode")
+    
+    if not used_reply:
+        _push_with_retry(user_id, safe_text)
+        if DEBUG_VERBOSE:
+            print(f"[fallback][push][ok] user={user_id[:5]}***{user_id[-3:]}")
+
 def _reply_safe(reply_token: str, text: str) -> None:
-    """Send a reply message via LINE Reply API (no quota consumption)."""
+    """[Deprecated] Simple reply fallback. Use _smart_send() for normal flow."""
     safe_text = text if len(text) <= 4500 else (text[:4490] + "...(截斷)")
     try:
         line_bot_api.reply_message(
@@ -131,11 +166,12 @@ def _push_with_retry(to_user_id: str, text: str, max_retries: int = 2) -> bool:
         folder = os.path.dirname(DEAD_LETTER_PATH)
         if folder:
             os.makedirs(folder, exist_ok=True)
-
+        error_message = str(e) if 'e' in locals() else "unknown"
         rec = {
             "ts": datetime.now(timezone.utc).isoformat(),  # timezone-aware UTC
             "user_id": f"{to_user_id[:5]}***{to_user_id[-3:]}",
-            "text": safe_text
+            "text": safe_text,
+            "error": error_message
         }
         with open(DEAD_LETTER_PATH, "a", encoding="utf-8") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
@@ -194,8 +230,8 @@ def process_text_message(user_id: str, user_question: str, reply_token: Optional
     :param user_question: Text content of the message.
     :return: None. The reply is sent asynchronously via LINE API.
     """
-
-    print(f"Processing message for user: {user_id[:5]}***{user_id[-3:]}")
+    if DEBUG_VERBOSE:
+        print(f"Processing message for user: {user_id[:5]}***{user_id[-3:]}")
 
     try:
         result = handle_message(user_question)  # Handling by bot_core.py.
@@ -205,11 +241,9 @@ def process_text_message(user_id: str, user_question: str, reply_token: Optional
         if not reply_text:
             reply_text = "出了點狀況喔！請稍後再試～"
 
-        # Reply Mode
-        if reply_token:
-            _reply_safe(reply_token, reply_text)
-        else:
-            _push_with_retry(user_id, reply_text)    
+        # The architecture is primarily push-based, but utilizes replies whenever
+        # possible to conserve message quota.
+        _smart_send(user_id, reply_token, reply_text)
         
         # For a seat query, return the seat map URL.
         if image_url:

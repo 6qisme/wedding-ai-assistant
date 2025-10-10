@@ -25,12 +25,7 @@ from linebot.v3.messaging import (
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
 # Local application imports
-from ai_core import get_ai_reply
-from data_provider import get_wedding_context_string
-# PostgreSQL database import
-from intents import classify_intents, extract_keyword
-from db.queries import find_guest_and_family
-from db.formatters import format_guest_reply
+from bot_core import handle_message
 
 # Load environment variables for local development.
 # On platforms like Render or Heroku, this is automatically handled.
@@ -92,19 +87,22 @@ def _push_with_retry(to_user_id: str, text: str, max_retries: int = 2) -> bool:
                     messages=[TextMessage(text=safe_text)]
                 )
             )
-            print(f"[push][ok] to={to_user_id} try={attempt}")
+            if DEBUG_VERBOSE:
+                print(f"[push][ok] to={to_user_id[:5]}***{to_user_id[-3:]} try={attempt}")
             return True
         
         except ApiException as e:
             # When LINE API responds with an error (inspect http status/body for diagnostics).
-            print(
-                f"[push][api-error] status={getattr(e, 'status', None)} "
-                f"body={getattr(e, 'body',None)} try={attempt}"
-                  )
+            if DEBUG_VERBOSE:
+                print(
+                    f"[push][api-error] status={getattr(e, 'status', None)} "
+                    f"body={getattr(e, 'body',None)} try={attempt}"
+                    )
             
         except Exception as e:
             # Network-layer error (e.g. Connection reset by peer)
-            print(f"[push][conn-error] {type(e).__name__}: {e} try={attempt}")
+            if DEBUG_VERBOSE:
+                print(f"[push][conn-error] {type(e).__name__}: {e} try={attempt}")
 
         if attempt <= max_retries:
             wait = 2 ** (attempt - 1)  # 1s, 2s...
@@ -119,15 +117,16 @@ def _push_with_retry(to_user_id: str, text: str, max_retries: int = 2) -> bool:
 
         rec = {
             "ts": datetime.now(timezone.utc).isoformat(),  # timezone-aware UTC
-            "user_id": to_user_id,
+            "user_id": f"{to_user_id[:5]}***{to_user_id[-3:]}",
             "text": safe_text
         }
         with open(DEAD_LETTER_PATH, "a", encoding="utf-8") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
         print(f"[push][dead-letter] saved -> {DEAD_LETTER_PATH}")
     except Exception as e:
-        print(f"[push][dead-letter][fail] {e}")
-        return False
+        if DEBUG_VERBOSE:
+            print(f"[push][dead-letter][fail] {e}")
+            return False
     
     return False  # Return False if written to dead-letter file.
     
@@ -178,46 +177,27 @@ def process_text_message(user_id: str, user_question: str) -> None:
     :return: None. The reply is sent asynchronously via LINE API.
     """
 
-    # Step 1: Classify intent
-
-    intents = classify_intents(user_question)
-    intent = intents[0] if intents else "smalltalk"
-
     print(f"Processing message for user: {user_id[:5]}***{user_id[-3:]}")
 
-    # Step 2: Prepare context depending on intent
-    context = ""
-    if intent == "seat_lookup":
-       keyword = extract_keyword(user_question)
-       if not keyword:
-           reply_text = "抱歉，我不太確定你要找誰的座位，麻煩您重新查詢，查詢範例：「我要找王小明的座位」，謝謝您！"
-           _push_with_retry(user_id, reply_text)
-           return
-       
-       db_result = find_guest_and_family(keyword)
-       reply_text = format_guest_reply(db_result)
-
-       if DEBUG_VERBOSE:
-           print("========== DEBUG CONTEXT ==========")
-           print("User question:", user_question)
-           print("Seat context:", db_result or "(空)")
-           print("Seat context (formatted):", reply_text)       
-         
-       _push_with_retry(user_id, reply_text)
-       return
-
-    else:
-        context = get_wedding_context_string()
-
     try:
-        reply_text = get_ai_reply(context=context, user_question=user_question)
-        print(f"AI reply generated: '{reply_text[:100]}...'")
+        result = handle_message(user_question)  # Handling by bot_core.py.
+        reply_text = result.get("text", "")
+        image_url = result.get("image_url")
 
-        ok = _push_with_retry(user_id, reply_text, max_retries=2)
-        print("Push message sent." if ok else f"[push][give-up] user={user_id}")
+        if not reply_text:
+            reply_text = "出了點狀況喔！請稍後再試～"
+        
+        # Sending text message.
+        _push_with_retry(user_id, reply_text)
+
+        # For a seat query, return the seat map URL.
+        if image_url:
+            _push_with_retry(user_id, f"📍座位圖請看這裡：{image_url}")
+
     except Exception as e:
-        # Catch any error in background (e.g. AI API calling fault.).
-        print(f"An error occurred in background task for user {user_id}: {e}")
+        if DEBUG_VERBOSE:
+            print(f"[process_text_message][error] user={user_id}: {e}")
+        _push_with_retry(user_id, "出了點狀況喔！請稍後再試～")
 
 # --- Section 5 : Local Development Block ---
 # This block only runs when the script is executed directly (e.g., python main.py).

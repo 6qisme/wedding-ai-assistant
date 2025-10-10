@@ -20,7 +20,8 @@ from linebot.v3.messaging import (
     ApiClient,
     MessagingApi,
     TextMessage,
-    PushMessageRequest
+    PushMessageRequest,
+    ReplyMessageRequest 
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
@@ -65,6 +66,22 @@ DEAD_LETTER_PATH = "instance/dead_letters.jsonl"
 
 # When pushing fails, wait 1 or 2 seconds then try again,
 # otherwise writing into dead_letters.jsonl for retry in the future.
+
+def _reply_safe(reply_token: str, text: str) -> None:
+    """Send a reply message via LINE Reply API (no quota consumption)."""
+    safe_text = text if len(text) <= 4500 else (text[:4490] + "...(截斷)")
+    try:
+        line_bot_api.reply_message(
+            ReplyMessageRequest(
+                reply_token=reply_token,
+                messages=[TextMessage(text=safe_text)]
+            )
+        )
+        if DEBUG_VERBOSE:
+            print(f"[reply][ok] len={len(safe_text)}")
+    except ApiException as e:
+        if DEBUG_VERBOSE:
+            print(f"[reply][api-error] {e}")
 
 def _push_with_retry(to_user_id: str, text: str, max_retries: int = 2) -> bool:
     """
@@ -163,12 +180,13 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
             # Instantiate a single background task for every text message.
             user_id = event.source.user_id
             user_question = event.message.text
-            background_tasks.add_task(process_text_message, user_id, user_question)
+            reply_token = event.reply_token
+            background_tasks.add_task(process_text_message, user_id, user_question, reply_token)
     return 'OK'
 
 # --- Section 4: Event Processing Logic ---
 
-def process_text_message(user_id: str, user_question: str) -> None:
+def process_text_message(user_id: str, user_question: str, reply_token: Optional[str] = None) -> None:
     """
     Handle a single text message event in a background thread.
 
@@ -186,10 +204,13 @@ def process_text_message(user_id: str, user_question: str) -> None:
 
         if not reply_text:
             reply_text = "出了點狀況喔！請稍後再試～"
-        
-        # Sending text message.
-        _push_with_retry(user_id, reply_text)
 
+        # Reply Mode
+        if reply_token:
+            _reply_safe(reply_token, reply_text)
+        else:
+            _push_with_retry(user_id, reply_text)    
+        
         # For a seat query, return the seat map URL.
         if image_url:
             _push_with_retry(user_id, f"📍座位圖請看這裡：{image_url}")
@@ -197,7 +218,10 @@ def process_text_message(user_id: str, user_question: str) -> None:
     except Exception as e:
         if DEBUG_VERBOSE:
             print(f"[process_text_message][error] user={user_id}: {e}")
-        _push_with_retry(user_id, "出了點狀況喔！請稍後再試～")
+        if reply_token:
+            _reply_safe(reply_token, "出了點狀況喔！請稍後再試～")
+        else:
+            _push_with_retry(user_id, "出了點狀況喔！請稍後再試～")
 
 # --- Section 5 : Local Development Block ---
 # This block only runs when the script is executed directly (e.g., python main.py).

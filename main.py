@@ -1,17 +1,16 @@
 # main.py
 
 # --- Section 1: Core Library Imports  ---
-
-import time, json, os
-import uvicorn
+import os
+import time
+import json
 from datetime import datetime, timezone
+from typing import Any
+
+import uvicorn
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
-
-# Load environment variables for the .env file for local development.
-# On a cloud platform like Render, this is not needed and will safely be ignored.
-load_dotenv()
-
 # Import necessary components from the line-bot-sdk. 
 from linebot.v3 import WebhookParser
 from linebot.v3.exceptions import InvalidSignatureError
@@ -28,16 +27,25 @@ from linebot.v3.webhooks import MessageEvent, TextMessageContent
 # Local application imports
 from ai_core import get_ai_reply
 from data_provider import get_wedding_context_string
-
 # PostgreSQL database import
 from intents import classify_intents, extract_keyword
 from db.queries import find_guest_and_family
 from db.formatters import format_guest_reply
 
+# Load environment variables for local development.
+# On platforms like Render or Heroku, this is automatically handled.
+load_dotenv()
+
 # --- Section 2: Initialization and Environment setup  ---
 
 # Initialize the FastAPI application, 'app' is the core instance of our web service.
 app = FastAPI()
+
+# Mount static folder for serving images and other assets
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if not os.path.exists(static_dir):
+    os.makedirs(static_dir, exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Retrieve credentials from environment variables.
 channel_secret = os.getenv('LINE_CHANNEL_SECRET')
@@ -58,12 +66,21 @@ configuration = Configuration(access_token=channel_access_token)
 line_bot_api = MessagingApi(ApiClient(configuration))
 
 # Failure message log
-DEAD_LETTER_PATH ="instance/dead_letters.jsonl"
+DEAD_LETTER_PATH = "instance/dead_letters.jsonl"
 
-# When pushing fault, wait 1 or 2 second than try again,
+# When pushing fails, wait 1 or 2 seconds then try again,
 # otherwise writing into dead_letters.jsonl for retry in the future.
 
 def _push_with_retry(to_user_id: str, text: str, max_retries: int = 2) -> bool:
+    """
+    Send a text message to a LINE user with retry and dead-letter fallback.
+
+    :param to_user_id: The LINE user ID to send the message to.
+    :param text: Message content to be sent.
+    :param max_retries: Maximum number of retries before writing to dead-letter.
+    :return: True if message sent successfully; False otherwise.
+    """
+
     # Limit LINE single message to ~5000 chars, conservatively truncate to avoid rejection.
     safe_text = text if len(text) <= 4500 else (text[:4490] + "...(截斷)")
 
@@ -90,7 +107,7 @@ def _push_with_retry(to_user_id: str, text: str, max_retries: int = 2) -> bool:
             print(f"[push][conn-error] {type(e).__name__}: {e} try={attempt}")
 
         if attempt <= max_retries:
-            wait = 2 ** (attempt - 1) # 1s, 2s...
+            wait = 2 ** (attempt - 1)  # 1s, 2s...
             print(f"[push] retry in {wait}s")
             time.sleep(wait)
 
@@ -101,7 +118,7 @@ def _push_with_retry(to_user_id: str, text: str, max_retries: int = 2) -> bool:
             os.makedirs(folder, exist_ok=True)
 
         rec = {
-            "ts": datetime.now(timezone.utc).isoformat(), # timezone-aware UTC
+            "ts": datetime.now(timezone.utc).isoformat(),  # timezone-aware UTC
             "user_id": to_user_id,
             "text": safe_text
         }
@@ -112,7 +129,7 @@ def _push_with_retry(to_user_id: str, text: str, max_retries: int = 2) -> bool:
         print(f"[push][dead-letter][fail] {e}")
         return False
     
-    return False # If dead-letter success.
+    return False  # Return False if written to dead-letter file.
     
 # --- Section 3 : Define the API router ---
 # Define the URL path
@@ -152,13 +169,13 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
 
 # --- Section 4: Event Processing Logic ---
 
-def process_text_message(user_id: str, user_question: str):
+def process_text_message(user_id: str, user_question: str) -> None:
     """
-    Processes incoming user message:
-    1. Classify intent (seat lookup / wedding info / fallback).
-    2. Query JSON or DB based on the intent.
-    3. Wrap result with GPT to generate a natural reply.
-    4. Push reply back to the user
+    Handle a single text message event in a background thread.
+
+    :param user_id: LINE user ID.
+    :param user_question: Text content of the message.
+    :return: None. The reply is sent asynchronously via LINE API.
     """
 
     # Step 1: Classify intent
@@ -166,7 +183,7 @@ def process_text_message(user_id: str, user_question: str):
     intents = classify_intents(user_question)
     intent = intents[0] if intents else "smalltalk"
 
-    print(f"Processing message for user: {user_id}")
+    print(f"Processing message for user: {user_id[:5]}***{user_id[-3:]}")
 
     # Step 2: Prepare context depending on intent
     context = ""
@@ -181,10 +198,10 @@ def process_text_message(user_id: str, user_question: str):
        reply_text = format_guest_reply(db_result)
 
        if DEBUG_VERBOSE:
-            print("========== DEBUG CONTEXT ==========")
-            print("User question:", user_question)
-            print("Seat context:\n", db_result or "(空)")
-            print("Seat context(format):\n",reply_text)       
+           print("========== DEBUG CONTEXT ==========")
+           print("User question:", user_question)
+           print("Seat context:", db_result or "(空)")
+           print("Seat context (formatted):", reply_text)       
          
        _push_with_retry(user_id, reply_text)
        return

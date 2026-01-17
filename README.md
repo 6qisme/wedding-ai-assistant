@@ -21,6 +21,7 @@
 - [功能概覽](#功能概覽)
 - [系統架構](#系統架構)
 - [技術棧](#技術棧)
+- [安全與隱私提醒](#安全與隱私提醒)
 - [快速開始（本機開發）](#快速開始本機開發)
 - [環境變數設計與分層（特別注意）](#環境變數設計與分層特別注意)
 - [資料庫（PostgreSQL）初始化與匯入來賓](#資料庫postgresql初始化與匯入來賓)
@@ -69,6 +70,13 @@
 4. 背景處理：`handle_message()` → （查 DB 或呼叫 OpenAI）→ `_smart_send`
 5. 回覆優先用 reply token（省額度/即時），失敗再 fallback push
 6. 查座位若有桌號，另外 push 座位圖網址（`/static/maps/...`）
+
+## 安全與隱私提醒
+
+- 本專案的來賓座位資訊存放於 PostgreSQL，透過環境變數連線（例如 `RENDER_DATABASE_URL` / `REMOTE_DATABASE_URL`），不會將資料庫憑證或原始名單提交到 Git。
+- 但請注意：部署到 Render 後，`static/` 下的資源（例如座位圖 `static/maps/...`）通常是**公開可存取**的；因此座位圖請使用「公開版」素材，避免放入可識別個人的資訊（新人全名、賓客姓名、電話、地址等）。
+- 請勿將敏感資訊提交到 Git：包含 `.env`、API keys/tokens、Database URL、以及含個資的賓客名單（CSV/Excel/JSON）。建議僅提交 `*.example` 範例檔作格式參考。
+- 若需要更高隱私（例如僅查到座位的人可看座位圖），需自行改造成受保護端點/簽章 URL/短效連結等機制（本專案目前未內建）。
 
 ### Render 環境變數設定（範例）
 ![Render env vars example](docs/images/render-env.png)

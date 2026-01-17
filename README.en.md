@@ -21,6 +21,7 @@ A wedding LINE Bot backend deployed on Render:
 - [Overview](#overview)
 - [Architecture](#architecture)
 - [Tech Stack](#tech-stack)
+- [Security & Privacy Notes](#security--privacy-notes)
 - [Quick Start (Local Development)](#quick-start-local-development)
 - [Environment Variables & Layering (Important)](#environment-variables--layering-important)
 - [Database (PostgreSQL) Initialization & Guest Import](#database-postgresql-initialization--guest-import)
@@ -69,6 +70,13 @@ A wedding LINE Bot backend deployed on Render:
 4. Background processing: `handle_message()` → (DB lookup or OpenAI call) → `_smart_send()`
 5. Reply uses reply token first (cost-efficient / instant); fallback to push on failure
 6. If a table is found, also push the seat map URL (`/static/maps/...`)
+
+## Security & Privacy Notes
+
+- Guest seat data is stored in PostgreSQL and accessed via environment-based configuration (e.g., `RENDER_DATABASE_URL` / `REMOTE_DATABASE_URL`). Database credentials and raw guest lists should never be committed to Git.
+- However, after deploying to Render, assets under `static/` (e.g., seat maps in `static/maps/...`) are typically **publicly accessible**. Use a “public-safe” seat map and avoid including personally identifiable information (full names, guest names, phone numbers, addresses, etc.).
+- Do not commit sensitive data to Git, including `.env`, API keys/tokens, Database URLs, or guest lists containing personal data (CSV/Excel/JSON). Prefer committing `*.example` files only for format reference.
+- If you need stricter privacy (e.g., only users with valid seat lookup can view the map), implement protected endpoints / signed URLs / short-lived links, etc. (not included by default).
 
 ### Render Environment Variables (Example)
 ![Render env vars example](docs/images/render-env.png)

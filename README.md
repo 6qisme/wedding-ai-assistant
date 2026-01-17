@@ -1,4 +1,12 @@
+[English](README.en.md) | 中文
 # Wedding AI Assistant（LINE Bot + FastAPI + PostgreSQL + OpenAI + Render）
+
+![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688?logo=fastapi&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-316192?logo=postgresql&logoColor=white)
+![OpenAI](https://img.shields.io/badge/AI-OpenAI%20GPT--4-412991?logo=openai&logoColor=white)
+![LINE](https://img.shields.io/badge/Platform-LINE%20Messaging%20API-00C300?logo=line&logoColor=white)
+![Render](https://img.shields.io/badge/Deployment-Render-46E3B7?logo=render&logoColor=white)
 
 一個部署在 Render 的婚禮 LINE Bot 後端：  
 - **查座位**：用姓名/暱稱查詢來賓與同桌家人座位（PostgreSQL）  
